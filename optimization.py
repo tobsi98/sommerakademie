@@ -53,7 +53,7 @@ def opt_dc(nr_time_steps, nr_cooling_machines=4, cop=4, LOAD_STEPS_PER_HOUR=4):
     model.km_max_generation = en.Constraint(model.KM, model.T, rule=km_max_generation_rule)
 
 
-    def cwp_status_rule(model, i, j, t):
+    def cwp_status_rule(model, i, j, t): #cwp = cool water pump
         return model.km_cwp_status[i, j, t] <= model.km_status[i, t]
     model.cwp_status = en.Constraint(model.KM, model.KM_CWP, model.T, rule=cwp_status_rule)
 

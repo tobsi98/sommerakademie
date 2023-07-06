@@ -44,7 +44,7 @@ def opt_dc(nr_time_steps, nr_cooling_machines=4, cop=4, LOAD_STEPS_PER_HOUR=4):
     model.cover_load = en.Constraint(model.T, rule=cover_load_rule)
 
 
-    def km_min_generation_rule(model, i, t):
+    def km_min_generation_rule(model, i, t): #km = kältemaschine 
         return model.km_status[i, t] * model.km_min_pow[i] <= model.km_generation_power[i, t]
     model.km_min_generation = en.Constraint(model.KM, model.T, rule=km_min_generation_rule)
 

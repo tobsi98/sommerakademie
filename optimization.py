@@ -1,0 +1,116 @@
+import os
+import csv
+import numpy as np
+import pandas as pd
+import pyomo.environ as en
+from pyomo.opt import SolverFactory
+from pyomo.opt import TerminationCondition, SolverStatus
+
+
+def opt_dc(nr_time_steps, nr_cooling_machines=4, cop=4, LOAD_STEPS_PER_HOUR=4):
+    model = en.AbstractModel()
+    # ############################## Sets #####################################
+    model.T = en.Set(initialize=np.arange(nr_time_steps))
+    model.KM = en.Set(initialize=np.arange(nr_cooling_machines))
+    model.KM_CWP = en.Set(initialize=['Small', 'Large']) # Cold Water Pump
+
+    # ############################## Parameters ###############################
+    # min and max power in [kW]
+    model.km_min_pow = en.Param(model.KM, mutable=True)
+    model.km_max_pow = en.Param(model.KM, mutable=True)
+    # load in [kW]
+    model.cooling_load = en.Param(model.T, mutable=True)
+    # Water flow in [m3/h]
+    model.water_flow = en.Param(model.T, mutable=True)
+    model.cop = en.Param(initialize=cop)
+    # incentive in [EUR/MWh]
+    model.incentive = en.Param(mutable=True)
+    # Electricity price in [EUR/MWh]
+    model.electricity_price = en.Param(model.T, mutable=True)
+    model.maintenance_costs = en.Param(mutable=True)
+
+    # ############################## Variables ################################
+    model.km_status = en.Var(model.KM, model.T, domain=en.Binary)
+    model.km_cwp_status = en.Var(model.KM, model.KM_CWP, model.T, domain=en.Binary)
+    # cold water pump power [kW]
+    model.cwpp = en.Var(model.T, domain=en.NonNegativeReals)
+    model.km_generation_power = en.Var(model.KM, model.T, domain=en.NonNegativeReals)
+    model.elec_load = en.Var(model.T, domain=en.NonNegativeReals)
+
+    # ############################## Constraints ##############################
+
+    def cover_load_rule(model, t):
+        return sum(model.km_generation_power[i, t] for i in model.KM) >= model.cooling_load[t]
+    model.cover_load = en.Constraint(model.T, rule=cover_load_rule)
+
+
+    def km_min_generation_rule(model, i, t):
+        return model.km_status[i, t] * model.km_min_pow[i] <= model.km_generation_power[i, t]
+    model.km_min_generation = en.Constraint(model.KM, model.T, rule=km_min_generation_rule)
+
+    def km_max_generation_rule(model, i, t):
+        return model.km_status[i, t] * model.km_max_pow[i] >= model.km_generation_power[i, t]
+    model.km_max_generation = en.Constraint(model.KM, model.T, rule=km_max_generation_rule)
+
+
+    def cwp_status_rule(model, i, j, t):
+        return model.km_cwp_status[i, j, t] <= model.km_status[i, t]
+    model.cwp_status = en.Constraint(model.KM, model.KM_CWP, model.T, rule=cwp_status_rule)
+
+    def cwp_wf_rule(model, t):
+        return model.water_flow[t] <= sum(model.km_cwp_status[i, 'Small', t] * 300 + model.km_cwp_status[i, 'Large', t] * 420 for i in model.KM)
+    model.cwp_wf = en.Constraint(model.T, rule=cwp_wf_rule)
+
+    def cwp_power_rule(model, t):
+        return model.cwpp[t] == sum(model.km_cwp_status[i, 'Small', t] * 23 + model.km_cwp_status[i, 'Large', t] * 40.1 for i in model.KM)
+    model.cwp_power = en.Constraint(model.T, rule=cwp_power_rule)
+
+    def electricity_load_rule(model, t):
+        return model.elec_load[t] >= sum(model.km_generation_power[i, t] / model.cop for i in model.KM)
+    model.electricity_load = en.Constraint(model.T, rule=electricity_load_rule)
+
+    def obj_rule(model):
+        # OBJECTIVE FUNC: Minimize Elec Costs
+        return sum(model.cwpp[t] * model.electricity_price[t] + model.elec_load[t] * (model.electricity_price[t] + model.maintenance_costs - model.incentive) / LOAD_STEPS_PER_HOUR for t in model.T)
+    model.obj = en.Objective(rule=obj_rule, sense=en.minimize)
+    return model.create_instance()
+
+    # print("Solver Termination: ", results.solver.termination_condition)
+    # print("Solver Status: ", results.solver.status)
+    # term_cond = results.solver.termination_condition == TerminationCondition.optimal
+
+if __name__ == "__main__":
+    cop = 4
+    nr_cooling_machines = 4
+    f_load = "./inputs/load.csv"
+    df = pd.read_csv(f_load)
+    nr_time_steps = df.shape[0]
+    instance = opt_dc(nr_time_steps)
+    instance.cooling_load.store_values({i: value for i, value in enumerate(df.load.values)})
+    instance.water_flow.store_values({i: value for i, value in enumerate(df.water_flow.values)})
+    instance.km_min_pow.store_values({i: value for i, value in enumerate([700] * nr_cooling_machines)})
+    instance.km_max_pow.store_values({i: value for i, value in enumerate([2800] * nr_cooling_machines)})
+    instance.incentive.store_values({None: 0.2*1e-3})
+    instance.electricity_price.store_values({i: value for i, value in enumerate([20*1e-3] * nr_time_steps)})
+    instance.maintenance_costs.store_values({None: 1.2*1e-3})
+    solver = SolverFactory('gurobi')
+    opt_results = solver.solve(instance, tee=True)
+    print("Solver Termination: ", opt_results.solver.termination_condition)
+    print("Solver Status: ", opt_results.solver.status)
+    with open('optimization_log.txt', 'w') as output_file:
+        instance.pprint(output_file)
+
+    variable_data = []
+    for var in instance.component_objects(en.Var, descend_into=True):
+        for index in var:
+            name = var[index].getname().split('[')[0]
+            value_list = [en.value(var[index])] if var[index].is_indexed() else [en.value(var[index])]
+            variable_data.append((name, index) + tuple(value_list))
+
+    # Save variable names, indices, and values to a CSV file
+    filename = 'variable_data.csv'
+    with open(filename, 'w', newline='') as csvfile:
+        writer = csv.writer(csvfile)
+        writer.writerow(('Variable', 'Index', 'Value'))
+        for data in variable_data:
+            writer.writerow(data)

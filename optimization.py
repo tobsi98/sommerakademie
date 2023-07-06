@@ -6,7 +6,7 @@ import pyomo.environ as en
 from pyomo.opt import SolverFactory
 from pyomo.opt import TerminationCondition, SolverStatus
 
-
+#test
 def opt_dc(nr_time_steps, nr_cooling_machines=4, cop=4, LOAD_STEPS_PER_HOUR=4):
     model = en.AbstractModel()
     # ############################## Sets #####################################

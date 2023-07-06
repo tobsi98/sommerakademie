@@ -8,12 +8,13 @@ from pyomo.opt import TerminationCondition, SolverStatus
 #from matplotlib import pyplot as plt
 
 
-def opt_dc(nr_time_steps, nr_cooling_machines=4, cop=4, LOAD_STEPS_PER_HOUR=4):
+def opt_dc(nr_time_steps, nr_cooling_machines=4, nr_fwp=2, cop=4, LOAD_STEPS_PER_HOUR=4):
     model = en.AbstractModel()
     # ############################## Sets #####################################
     model.T = en.Set(initialize=np.arange(nr_time_steps))
     model.KM = en.Set(initialize=np.arange(nr_cooling_machines))
     model.KM_CWP = en.Set(initialize=['Small', 'Large']) # Cold Water Pump
+    model.FWP = en.Set(initialize=np.arange(nr_fwp))
 
     # ############################## Parameters ###############################
     # min and max power in [kW]
@@ -37,9 +38,10 @@ def opt_dc(nr_time_steps, nr_cooling_machines=4, cop=4, LOAD_STEPS_PER_HOUR=4):
     model.cwpp = en.Var(model.T, domain=en.NonNegativeReals)
     model.km_generation_power = en.Var(model.KM, model.T, domain=en.NonNegativeReals)
     model.elec_load = en.Var(model.T, domain=en.NonNegativeReals)
+    model.fwp_power =en.Var(model.FWP,model.T,domain=en.NonNegativeReals)
 
     # ############################## Constraints ##############################
-
+    
     def cover_load_rule(model, t):
         return sum(model.km_generation_power[i, t] for i in model.KM) >= model.cooling_load[t]
     model.cover_load = en.Constraint(model.T, rule=cover_load_rule)
@@ -64,6 +66,19 @@ def opt_dc(nr_time_steps, nr_cooling_machines=4, cop=4, LOAD_STEPS_PER_HOUR=4):
     def cwp_power_rule(model, t):
         return model.cwpp[t] == sum(model.km_cwp_status[i, 'Small', t] * 23 + model.km_cwp_status[i, 'Large', t] * 40.1 for i in model.KM)
     model.cwp_power = en.Constraint(model.T, rule=cwp_power_rule)
+    
+    def fwp1_power_rule(model, t):
+      s1= model.km_status[0,t]
+      s2= model.km_status[1,t]
+      return model.fwp_power[0,t] >= 18*s1+18*s2+(s1+s2-1)*6.95*s1+(s1+s2-1)*6.95*s2
+    model.fwp1_power = en.Constraint(model.T, rule=fwp1_power_rule)
+    
+    def fwp2_power_rule(model, t):
+      s1= model.km_status[2,t]
+      s2= model.km_status[3,t]
+      return model.fwp_power[1,t] >= 18*s1+18*s2+(s1+s2-1)*6.95*s1+(s1+s2-1)*6.95*s2
+    model.fwp2_power = en.Constraint(model.T, rule=fwp2_power_rule)
+    
 
     def electricity_load_rule(model, t):
         return model.elec_load[t] >= sum(model.km_generation_power[i, t] / model.cop for i in model.KM)
@@ -71,7 +86,7 @@ def opt_dc(nr_time_steps, nr_cooling_machines=4, cop=4, LOAD_STEPS_PER_HOUR=4):
 
     def obj_rule(model):
         # OBJECTIVE FUNC: Minimize Elec Costs
-        return sum((model.cwpp[t] * model.electricity_price[t] + 
+        return sum(((model.cwpp[t] + model.fwp_power[0,t] + model.fwp_power[1,t]) * model.electricity_price[t] + 
                    model.elec_load[t] * (model.electricity_price[t] + 
                model.maintenance_costs - model.incentive)) / LOAD_STEPS_PER_HOUR
                 for t in model.T)

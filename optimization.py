@@ -5,8 +5,9 @@ import pandas as pd
 import pyomo.environ as en
 from pyomo.opt import SolverFactory
 from pyomo.opt import TerminationCondition, SolverStatus
+#import matplotlib.plot 
 
-#test
+
 def opt_dc(nr_time_steps, nr_cooling_machines=4, cop=4, LOAD_STEPS_PER_HOUR=4):
     model = en.AbstractModel()
     # ############################## Sets #####################################
@@ -84,15 +85,21 @@ if __name__ == "__main__":
     nr_cooling_machines = 4
     f_load = "./inputs/load.csv"
     df = pd.read_csv(f_load)
+    #df.plot()
     nr_time_steps = df.shape[0]
     instance = opt_dc(nr_time_steps)
-    instance.cooling_load.store_values({i: value for i, value in enumerate(df.load.values)})
-    instance.water_flow.store_values({i: value for i, value in enumerate(df.water_flow.values)})
-    instance.km_min_pow.store_values({i: value for i, value in enumerate([700] * nr_cooling_machines)})
-    instance.km_max_pow.store_values({i: value for i, value in enumerate([2800] * nr_cooling_machines)})
-    instance.incentive.store_values({None: 0.2*1e-3})
-    instance.electricity_price.store_values({i: value for i, value in enumerate([20*1e-3] * nr_time_steps)})
-    instance.maintenance_costs.store_values({None: 1.2*1e-3})
+    instance.cooling_load.store_values({i: value for i, value in enumerate(
+        df.load.values)})
+    instance.water_flow.store_values({i: value for i, value in enumerate(
+        df.water_flow.values)})
+    instance.km_min_pow.store_values({i: value for i, value in enumerate([700]
+                                                 * nr_cooling_machines)}) #kW
+    instance.km_max_pow.store_values({i: value for i, value in enumerate([2800] 
+                                                 * nr_cooling_machines)}) #kW
+    instance.incentive.store_values({None: 0.2*1e-3}) #20ct/MWh
+    instance.electricity_price.store_values({i: value for i, value in 
+                                     enumerate([20*1e-3] * nr_time_steps)}) #2ct/kWh
+    instance.maintenance_costs.store_values({None: 1.2*1e-3}) #1,2€/kWh
     solver = SolverFactory('gurobi')
     opt_results = solver.solve(instance, tee=True)
     print("Solver Termination: ", opt_results.solver.termination_condition)

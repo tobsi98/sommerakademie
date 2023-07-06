@@ -5,7 +5,7 @@ import pandas as pd
 import pyomo.environ as en
 from pyomo.opt import SolverFactory
 from pyomo.opt import TerminationCondition, SolverStatus
-#import matplotlib.plot 
+#from matplotlib import pyplot as plt
 
 
 def opt_dc(nr_time_steps, nr_cooling_machines=4, cop=4, LOAD_STEPS_PER_HOUR=4):
@@ -44,7 +44,6 @@ def opt_dc(nr_time_steps, nr_cooling_machines=4, cop=4, LOAD_STEPS_PER_HOUR=4):
         return sum(model.km_generation_power[i, t] for i in model.KM) >= model.cooling_load[t]
     model.cover_load = en.Constraint(model.T, rule=cover_load_rule)
 
-
     def km_min_generation_rule(model, i, t): #km = kältemaschine 
         return model.km_status[i, t] * model.km_min_pow[i] <= model.km_generation_power[i, t]
     model.km_min_generation = en.Constraint(model.KM, model.T, rule=km_min_generation_rule)
@@ -72,7 +71,10 @@ def opt_dc(nr_time_steps, nr_cooling_machines=4, cop=4, LOAD_STEPS_PER_HOUR=4):
 
     def obj_rule(model):
         # OBJECTIVE FUNC: Minimize Elec Costs
-        return sum(model.cwpp[t] * model.electricity_price[t] + model.elec_load[t] * (model.electricity_price[t] + model.maintenance_costs - model.incentive) / LOAD_STEPS_PER_HOUR for t in model.T)
+        return sum((model.cwpp[t] * model.electricity_price[t] + 
+                   model.elec_load[t] * (model.electricity_price[t] + 
+               model.maintenance_costs - model.incentive)) / LOAD_STEPS_PER_HOUR
+                for t in model.T)
     model.obj = en.Objective(rule=obj_rule, sense=en.minimize)
     return model.create_instance()
 
@@ -85,7 +87,6 @@ if __name__ == "__main__":
     nr_cooling_machines = 4
     f_load = "./inputs/load.csv"
     df = pd.read_csv(f_load)
-    #df.plot()
     nr_time_steps = df.shape[0]
     instance = opt_dc(nr_time_steps)
     instance.cooling_load.store_values({i: value for i, value in enumerate(

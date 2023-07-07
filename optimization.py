@@ -103,8 +103,15 @@ if __name__ == "__main__":
     nr_cooling_machines = 4
     f_load = "./inputs/load.csv"
     df = pd.read_csv(f_load)
+
+    #dataf = pd.DataFrame(np.array([[1,2], [3,4], [4,5]]), columns=['type', 'iwas', 'value'])
+   #dataf.insert("KM", 1, (1, 2))
+
+    #df2.insert('ups',3,(4,5), columns=['type', 'iwas', 'value'])
+    #df2.insert(data_dict)
+    #print(d)
     df.plot()
-    plt.show()
+    #plt.show()
     nr_time_steps = df.shape[0]
     #write inputs into params
     instance = opt_dc(nr_time_steps)
@@ -153,6 +160,8 @@ if __name__ == "__main__":
                      'km_generation_power 2', 'km_generation_power 3'])
     plt.xlabel('15 Minuten Intervall über eine Woche')
     plt.ylabel('Leistung [kW]')
+
+    df1.plot.area(y=['fwp_power 0', 'fwp_power 1'])
     plt.show()
     # Save variable names, indices, and values to a CSV file
     filename = 'variable_data.csv'

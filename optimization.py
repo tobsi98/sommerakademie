@@ -8,6 +8,7 @@ from pyomo.opt import TerminationCondition, SolverStatus
 from matplotlib import pyplot as plt
 
 
+
 def opt_dc(nr_time_steps, nr_cooling_machines=4, nr_fwp=2, cop=4, LOAD_STEPS_PER_HOUR=4):
     model = en.AbstractModel()
     # ############################## Sets #####################################
@@ -105,6 +106,7 @@ if __name__ == "__main__":
     df.plot()
     plt.show()
     nr_time_steps = df.shape[0]
+    #write inputs into params
     instance = opt_dc(nr_time_steps)
     instance.cooling_load.store_values({i: value for i, value in enumerate(
         df.load.values)})
@@ -126,18 +128,52 @@ if __name__ == "__main__":
         instance.pprint(output_file)
 
     variable_data = []
+    df1 = pd.DataFrame()
+    i=0
+    spalte=0
     for var in instance.component_objects(en.Var, descend_into=True):
         for index in var:
+            i = i + 1
             name = var[index].getname().split('[')[0]
             value_list = [en.value(var[index])] if var[index].is_indexed() else [en.value(var[index])]
             variable_data.append((name, index) + tuple(value_list))
-
+            if i % 653 == 0:
+                spalte = spalte + 1
+                newList = variable_data[i - 653: i]
+                cstring = ""
+                if type(index) is tuple:
+                    for v in range(0,len(index) - 1):
+                        cstring = cstring + " " + str(index[v])
+                    df1[name + cstring] = [item[2] for item in newList]
+                else:
+                    df1[name] = [item[2] for item in newList]
+    fig, axes = plt.subplots()
+    df['load'].plot()
+    df1.plot.area(y=['km_generation_power 0', 'km_generation_power 1',
+                     'km_generation_power 2', 'km_generation_power 3'])
+    plt.xlabel('15 Minuten Intervall über eine Woche')
+    plt.ylabel('Leistung [kW]')
+    plt.show()
     # Save variable names, indices, and values to a CSV file
-    #variable_data.plot()
-    #plt.show()
     filename = 'variable_data.csv'
     with open(filename, 'w', newline='') as csvfile:
         writer = csv.writer(csvfile)
         writer.writerow(('Variable', 'Index', 'Value'))
         for data in variable_data:
             writer.writerow(data)
+            
+
+#    sns.set_theme(palette='muted')
+
+    
+# ax.stackplot(timesteps, 
+#              PowerThermal.to_numpy(dtype = float).transpose(), wind, pv, 
+#              values['w_pump'].to_numpy(dtype = float).transpose(),
+#              values['w_turb'].to_numpy(dtype = float).transpose(),
+#              labels=['Kohle', 'GuD', 'Gasturbine','Wind', 'PV','Pump','Turbinieren'], 
+#              colors = ["grey", "blue", "red", "green", "yellow", "purple", "orange"])
+# ax.set_title('Bsp3: Fossile + erneuerbare Kraftwerke + Speicher')
+# ax.legend(loc='lower left')
+# ax.set_ylabel('Erzeugung [MW]')
+# ax.set_xlim(xmin=timesteps[0], xmax=timesteps[23])
+# fig.tight_layout()

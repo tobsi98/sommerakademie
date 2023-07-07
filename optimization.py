@@ -9,13 +9,15 @@ from matplotlib import pyplot as plt
 
 
 
-def opt_dc(nr_time_steps, nr_cooling_machines=4, nr_fwp=2, cop=4, LOAD_STEPS_PER_HOUR=4):
+def opt_dc(nr_time_steps, nr_cooling_machines=4, nr_fwp=2, nr_locations=3, cop=4, LOAD_STEPS_PER_HOUR=4):
     model = en.AbstractModel()
     # ############################## Sets #####################################
     model.T = en.Set(initialize=np.arange(nr_time_steps))
     model.KM = en.Set(initialize=np.arange(nr_cooling_machines))
     model.KM_CWP = en.Set(initialize=['Small', 'Large']) # Cold Water Pump
     model.FWP = en.Set(initialize=np.arange(nr_fwp))
+    model.LOCA = en.Set(initialize=np.arange(nr_locations))
+    
 
     # ############################## Parameters ###############################
     # min and max power in [kW]
@@ -101,16 +103,21 @@ def opt_dc(nr_time_steps, nr_cooling_machines=4, nr_fwp=2, cop=4, LOAD_STEPS_PER
 if __name__ == "__main__":
     cop = 4
     nr_cooling_machines = 4
-    f_load = "./inputs/load.csv"
+    # load for one location
+    #f_load = "./inputs/load.csv"
+   # df = pd.read_csv(f_load)
+    
+    # load for all locations
+    f_load = "./inputs/load_all.csv"
     df = pd.read_csv(f_load)
+    data_location0 = df[(df['utility']==0)]
+    data_location1 = df[(df['utility']==1)]
+    data_location2 = df[(df['utility']==2)]
+    
+    df = data_location2
 
-    #dataf = pd.DataFrame(np.array([[1,2], [3,4], [4,5]]), columns=['type', 'iwas', 'value'])
-   #dataf.insert("KM", 1, (1, 2))
-
-    #df2.insert('ups',3,(4,5), columns=['type', 'iwas', 'value'])
-    #df2.insert(data_dict)
-    #print(d)
-    df.plot()
+    
+    df.plot(y=['load', 'water_flow'])
     #plt.show()
     nr_time_steps = df.shape[0]
     #write inputs into params
@@ -155,13 +162,17 @@ if __name__ == "__main__":
                 else:
                     df1[name] = [item[2] for item in newList]
     fig, axes = plt.subplots()
-    df['load'].plot()
+    #df['load'].plot()
     df1.plot.area(y=['km_generation_power 0', 'km_generation_power 1',
                      'km_generation_power 2', 'km_generation_power 3'])
+    #df.plot.area(y=['load'], stacked=False)
     plt.xlabel('15 Minuten Intervall über eine Woche')
     plt.ylabel('Leistung [kW]')
 
-    df1.plot.area(y=['fwp_power 0', 'fwp_power 1'])
+    #df1.plot.area(y=['fwp_power 0', 'fwp_power 1'])
+    df1.plot.area(y=['fwp_power 0'])
+    plt.show()
+    df1.plot.area(y=['fwp_power 1'])
     plt.show()
     # Save variable names, indices, and values to a CSV file
     filename = 'variable_data.csv'

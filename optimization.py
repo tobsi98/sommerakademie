@@ -5,7 +5,7 @@ import pandas as pd
 import pyomo.environ as en
 from pyomo.opt import SolverFactory
 from pyomo.opt import TerminationCondition, SolverStatus
-#from matplotlib import pyplot as plt
+from matplotlib import pyplot as plt
 
 
 def opt_dc(nr_time_steps, nr_cooling_machines=4, nr_fwp=2, cop=4, LOAD_STEPS_PER_HOUR=4):
@@ -102,6 +102,8 @@ if __name__ == "__main__":
     nr_cooling_machines = 4
     f_load = "./inputs/load.csv"
     df = pd.read_csv(f_load)
+    df.plot()
+    plt.show()
     nr_time_steps = df.shape[0]
     instance = opt_dc(nr_time_steps)
     instance.cooling_load.store_values({i: value for i, value in enumerate(
@@ -131,6 +133,8 @@ if __name__ == "__main__":
             variable_data.append((name, index) + tuple(value_list))
 
     # Save variable names, indices, and values to a CSV file
+    #variable_data.plot()
+    #plt.show()
     filename = 'variable_data.csv'
     with open(filename, 'w', newline='') as csvfile:
         writer = csv.writer(csvfile)

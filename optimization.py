@@ -104,32 +104,34 @@ if __name__ == "__main__":
     cop = 4
     nr_cooling_machines = 4
     # load for one location
-    #f_load = "./inputs/load.csv"
-   # df = pd.read_csv(f_load)
-    
-    # load for all locations
     f_load = "./inputs/load_all.csv"
     df = pd.read_csv(f_load)
-    data_location0 = df[(df['utility']==0)]
-    data_location1 = df[(df['utility']==1)]
-    data_location1.reset_index(inplace = True, drop=True)
-    data_location2 = df[(df['utility']==2)]
-    data_location2.reset_index(inplace = True, drop=True)
-    data_location1.rename(columns={'load': 'load1'}, inplace=True)
-    data_location2.rename(columns={'load': 'load2'}, inplace=True)
-    data = pd.concat([data_location0['t'], data_location0['load'], data_location1['load1'], data_location2['load2']], axis=1)
+    df['Index'] = list(zip(df['utility'], df['t']))
+    df.set_index('Index', inplace=True)
+    df.drop(columns=['utility', 't'], inplace=True)
+    
+    # load for all locations
+   # f_load = "./inputs/load_all.csv"
+   # df = pd.read_csv(f_load)
+   # data_location0 = df[(df['utility']==0)]
+   # data_location1 = df[(df['utility']==1)]
+   # data_location1.reset_index(inplace = True, drop=True)
+   # data_location2 = df[(df['utility']==2)]
+  #  data_location2.reset_index(inplace = True, drop=True)
+   # data_location1.rename(columns={'load': 'load1'}, inplace=True)
+    #data_location2.rename(columns={'load': 'load2'}, inplace=True)
+    #data = pd.concat([data_location0['t'], data_location0['load'], data_location1['load1'], data_location2['load2']], axis=1)
     #df = data_location2
 
     
     df.plot(y=['load', 'water_flow'])
     #plt.show()
-    nr_time_steps = df.shape[0]
+    nr_time_steps = 653
     #write inputs into params
     instance = opt_dc(nr_time_steps)
-    instance.cooling_load.store_values({i: value for i, value in enumerate(
-        df.load.values)})
-    instance.water_flow.store_values({i: value for i, value in enumerate(
-        df.water_flow.values)})
+    instance.cooling_load.store_values(df['load'].to_dict())
+    instance.water_flow.store_values(df['water_flow'].to_dict())
+
     instance.km_min_pow.store_values({i: value for i, value in enumerate([700]
                                                  * nr_cooling_machines)}) #kW
     instance.km_max_pow.store_values({i: value for i, value in enumerate([2800] 

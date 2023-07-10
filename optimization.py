@@ -17,6 +17,7 @@ def opt_dc(nr_time_steps, nr_cooling_machines=4, nr_fwp=2, nr_locations=3, cop=4
     model.KM_CWP = en.Set(initialize=['Small', 'Large']) # Cold Water Pump
     model.FWP = en.Set(initialize=np.arange(nr_fwp))
     model.LOCA = en.Set(initialize=np.arange(nr_locations))
+    #model.PIPES = en.Set(initialize=np.arange(nr_pipes))
     
 
     # ############################## Parameters ###############################
@@ -45,9 +46,24 @@ def opt_dc(nr_time_steps, nr_cooling_machines=4, nr_fwp=2, nr_locations=3, cop=4
 
     # ############################## Constraints ##############################
     
-    def cover_load_rule(model, loca, t):
-        return sum(model.km_generation_power[loca, i, t] for i in model.KM) >= model.cooling_load[loca, t]
-    model.cover_load = en.Constraint(model.LOCA, model.T, rule=cover_load_rule)
+    
+    
+    # Location A0
+    def cover_load0_rule(model, t):
+        return sum(model.km_generation_power[0,i,t] +0.95*model.km_generation_power[1,i,t] + 0.9*model.km_generation_power[2,i,t] for i in model.KM) >= model.cooling_load[0,t]+0.95*model.cooling_load[1,t]+0.90*model.cooling_load[2,t]
+    model.cover_load0 = en.Constraint(model.T, rule=cover_load0_rule)
+    # Location A1
+    def cover_load1_rule(model, t):
+        return sum(0.95*model.km_generation_power[0,i,t] + model.km_generation_power[1,i,t] + 0.92*model.km_generation_power[2,i,t] for i in model.KM) >= model.cooling_load[1,t]+0.95*model.cooling_load[0,t]+0.92*model.cooling_load[2,t]
+    model.cover_load1 = en.Constraint(model.T, rule=cover_load1_rule)
+    # Location A2
+    def cover_load2_rule(model, loca, t):
+        return sum(0.9*model.km_generation_power[0,i,t] + 0.92*model.km_generation_power[1,i,t] + model.km_generation_power[2,i,t] for i in model.KM) >= model.cooling_load[2,t] + 0.9*model.cooling_load[0,t] + 0.92*model.cooling_load[1,t]
+    model.cover_load2 = en.Constraint(model.LOCA, model.T, rule=cover_load2_rule)
+   # def cover_load_rule(model, loca, t):
+        
+    #     return sum(sum(model.km_generation_power[j, i, t] for i in model.KM) for j in model.LOCA) >= model.cooling_load[loca, t]*einfacheFunktion(loca)
+    # model.cover_load = en.Constraint(model.LOCA, model.T, rule=cover_load_rule)
 
     def km_min_generation_rule(model, loca, i, t): #km = kältemaschine 
         return model.km_status[loca, i, t] * model.km_min_pow[i] <= model.km_generation_power[loca, i, t]
@@ -175,6 +191,8 @@ if __name__ == "__main__":
                     df1[name + cstring] = [item[2] for item in newList]
                 else:
                     df1[name] = [item[2] for item in newList]
+    
+    df1 = df1.abs()
     fig, axes = plt.subplots()
     df1.plot.area(y=['km_generation_power 0 0', 'km_generation_power 0 1',
                      'km_generation_power 0 2', 'km_generation_power 0 3'])

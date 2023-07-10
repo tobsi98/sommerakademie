@@ -86,10 +86,15 @@ def opt_dc(nr_time_steps, nr_cooling_machines=4, nr_fwp=2, nr_locations=3, cop=4
     def electricity_load_rule(model, loca, t):
         return model.elec_load[loca, t] >= sum(model.km_generation_power[loca, i, t] / model.cop for i in model.KM)
     model.electricity_load = en.Constraint(model.LOCA, model.T, rule=electricity_load_rule)
-
+    
+    # def loca_rule(model, loca):
+    #     return model.LOCA == 0
+    # model.LOCA = en.Constraint(model.LOCA, rule=loca_rule)
+    
     def obj_rule(model):
         # OBJECTIVE FUNC: Minimize Elec Costs
-        return sum(sum(((model.cwpp[loca, t] + model.fwp_power[loca, 0,t] + model.fwp_power[loca, 1,t]) * model.electricity_price[t] + 
+        return sum(sum(((model.cwpp[loca, t] + model.fwp_power[loca, 0,t] + 
+                         model.fwp_power[loca, 1,t]) * model.electricity_price[t] + 
                    model.elec_load[loca, t] * (model.electricity_price[t] + 
                model.maintenance_costs - model.incentive)) / LOAD_STEPS_PER_HOUR
                 for t in model.T)for loca in model.LOCA)
@@ -125,10 +130,13 @@ if __name__ == "__main__":
 
     
     df.plot(y=['load', 'water_flow'])
+    #df_loc1 = df[:653]
+    #df_loc2 = df[653:1306]
+    #df_loc3 = df[1306:1960]
     #plt.show()
     nr_time_steps = 653
     #write inputs into params
-    instance = opt_dc(nr_time_steps)
+    instance = opt_dc(nr_time_steps, nr_locations=3)
     instance.cooling_load.store_values(df['load'].to_dict())
     instance.water_flow.store_values(df['water_flow'].to_dict())
 
@@ -168,17 +176,31 @@ if __name__ == "__main__":
                 else:
                     df1[name] = [item[2] for item in newList]
     fig, axes = plt.subplots()
-    #df['load'].plot()
-    df1.plot.area(y=['km_generation_power 0', 'km_generation_power 1',
-                     'km_generation_power 2', 'km_generation_power 3'])
-    #df.plot.area(y=['load'], stacked=False)
+    df1.plot.area(y=['km_generation_power 0 0', 'km_generation_power 0 1',
+                     'km_generation_power 0 2', 'km_generation_power 0 3'])
     plt.xlabel('15 Minuten Intervall über eine Woche')
-    plt.ylabel('Leistung [kW]')
-
-    #df1.plot.area(y=['fwp_power 0', 'fwp_power 1'])
-    df1.plot.area(y=['fwp_power 0'])
+    plt.ylabel('Leistung KMs Standort 1 [kW]')
+    df1.plot.area(y=['fwp_power 0 0'])
     plt.show()
-    df1.plot.area(y=['fwp_power 1'])
+    df1.plot.area(y=['fwp_power 0 1'])
+    plt.show()
+    
+    df1.plot.area(y=['km_generation_power 1 0', 'km_generation_power 1 1',
+                     'km_generation_power 1 2', 'km_generation_power 1 3'])
+    plt.xlabel('15 Minuten Intervall über eine Woche')
+    plt.ylabel('Leistung KMs Standort 2 [kW]')
+    df1.plot.area(y=['fwp_power 1 0'])
+    plt.show()
+    df1.plot.area(y=['fwp_power 1 1'])
+    plt.show()
+    
+    df1.plot.area(y=['km_generation_power 2 0', 'km_generation_power 2 1',
+                     'km_generation_power 2 2', 'km_generation_power 2 3'])
+    plt.xlabel('15 Minuten Intervall über eine Woche')
+    plt.ylabel('Leistung KMs Standort 3 [kW]')
+    df1.plot.area(y=['fwp_power 2 0'])
+    plt.show()
+    df1.plot.area(y=['fwp_power 2 1'])
     plt.show()
     # Save variable names, indices, and values to a CSV file
     filename = 'variable_data.csv'

@@ -9,7 +9,7 @@ from matplotlib import pyplot as plt
 
 
 
-def opt_dc(nr_time_steps, nr_cooling_machines=4, nr_fwp=2, nr_locations=3, cop=4, LOAD_STEPS_PER_HOUR=4):
+def opt_dc(nr_time_steps, nr_cooling_machines=4, nr_fwp=2, nr_locations=3, nr_pipes=3, cop=4, LOAD_STEPS_PER_HOUR=4):
     model = en.AbstractModel()
     # ############################## Sets #####################################
     model.T = en.Set(initialize=np.arange(nr_time_steps))
@@ -17,7 +17,7 @@ def opt_dc(nr_time_steps, nr_cooling_machines=4, nr_fwp=2, nr_locations=3, cop=4
     model.KM_CWP = en.Set(initialize=['Small', 'Large']) # Cold Water Pump
     model.FWP = en.Set(initialize=np.arange(nr_fwp))
     model.LOCA = en.Set(initialize=np.arange(nr_locations))
-    #model.PIPES = en.Set(initialize=np.arange(nr_pipes))
+   # model.PIPES = en.Set(initialize=np.arange(nr_pipes))
     
 
     # ############################## Parameters ###############################
@@ -34,6 +34,8 @@ def opt_dc(nr_time_steps, nr_cooling_machines=4, nr_fwp=2, nr_locations=3, cop=4
     # Electricity price in [EUR/MWh]
     model.electricity_price = en.Param(model.T, mutable=True)
     model.maintenance_costs = en.Param(mutable=True)
+    # transfer loss param 
+  #  model.transfer_losses = en.Param(model.LOCA, model.LOCA, mutable=True)
 
     # ############################## Variables ################################
     model.km_status = en.Var(model.LOCA, model.KM, model.T, domain=en.Binary)
@@ -42,12 +44,28 @@ def opt_dc(nr_time_steps, nr_cooling_machines=4, nr_fwp=2, nr_locations=3, cop=4
     model.cwpp = en.Var(model.LOCA, model.T, domain=en.NonNegativeReals)
     model.km_generation_power = en.Var(model.LOCA, model.KM, model.T, domain=en.NonNegativeReals)
     model.elec_load = en.Var(model.LOCA, model.T, domain=en.NonNegativeReals)
-    model.fwp_power =en.Var(model.LOCA, model.FWP,model.T,domain=en.NonNegativeReals)
+    model.fwp_power = en.Var(model.LOCA, model.FWP,model.T,domain=en.NonNegativeReals)
+    #model.import_level = en.Var(model.LOCA, model.T, domain=en.NonNegativeReals)
+  #  model.surplus = en.Var(model.LOCA, model.T, domain=en.NonNegativeReals)
+    # constraints: import level (in cover load), surplus
 
     # ############################## Constraints ##############################
+    # def surplus_rule(model, loca, t):
+    #     return model.surplus[loca,t] == sum(model.km_generation_power[loca,i,t] for i in model.KM) - model.cooling_load[loca,t]
+    # model.surplus_power = en.Constraint(model.LOCA, model.T, rule=surplus_rule)
     
+    # def import_level_rule(model, locai, t):
+    #     return model.import_level[locai,t] <= sum(model.surplus[j,t] * model.transfer_losses[(locai, j)] for j in model.LOCA)
+    # model.import_lvl = en.Constraint(model.LOCA, model.T, rule=import_level_rule)
     
+    # def import_level_2_rule(model, locai, locaj, t):
+    #     return model.import_level[locai, locaj]
     
+    #### cover_load_rule anpassen:  generation + import_level
+    
+    # def pipe_rule(model, loca, t): #welche Leistung muss auf der Leitung fließen
+    #     return model.pipes_power[] == (sum(model.km_generation_power[loca,i,t] for i in model.KM) - model.cooling_load[loca,t])*eta(loca)
+    #model.cover_load = en.Constraint(model.T, rule=pipe_rule)
     # Location A0
     def cover_load0_rule(model, t):
         return sum(model.km_generation_power[0,i,t] +0.95*model.km_generation_power[1,i,t] + 0.9*model.km_generation_power[2,i,t] for i in model.KM) >= model.cooling_load[0,t]+0.95*model.cooling_load[1,t]+0.90*model.cooling_load[2,t]
@@ -60,9 +78,9 @@ def opt_dc(nr_time_steps, nr_cooling_machines=4, nr_fwp=2, nr_locations=3, cop=4
     def cover_load2_rule(model, loca, t):
         return sum(0.9*model.km_generation_power[0,i,t] + 0.92*model.km_generation_power[1,i,t] + model.km_generation_power[2,i,t] for i in model.KM) >= model.cooling_load[2,t] + 0.9*model.cooling_load[0,t] + 0.92*model.cooling_load[1,t]
     model.cover_load2 = en.Constraint(model.LOCA, model.T, rule=cover_load2_rule)
-   # def cover_load_rule(model, loca, t):
-        
-    #     return sum(sum(model.km_generation_power[j, i, t] for i in model.KM) for j in model.LOCA) >= model.cooling_load[loca, t]*einfacheFunktion(loca)
+    # def cover_load_rule(model, loca, t):  
+    #     return sum(model.km_generation_power[loca, i, t] for i in model.KM) + model.import_level[loca,t] >= model.cooling_load[loca, t]
+    #     #return sum(model.km_generation_power[loca, i, t] for i in model.KM) >= model.cooling_load[loca, t] - model.surplus[loca,t] 
     # model.cover_load = en.Constraint(model.LOCA, model.T, rule=cover_load_rule)
 
     def km_min_generation_rule(model, loca, i, t): #km = kältemaschine 
@@ -102,10 +120,7 @@ def opt_dc(nr_time_steps, nr_cooling_machines=4, nr_fwp=2, nr_locations=3, cop=4
     def electricity_load_rule(model, loca, t):
         return model.elec_load[loca, t] >= sum(model.km_generation_power[loca, i, t] / model.cop for i in model.KM)
     model.electricity_load = en.Constraint(model.LOCA, model.T, rule=electricity_load_rule)
-    
-    # def loca_rule(model, loca):
-    #     return model.LOCA == 0
-    # model.LOCA = en.Constraint(model.LOCA, rule=loca_rule)
+   
     
     def obj_rule(model):
         # OBJECTIVE FUNC: Minimize Elec Costs
@@ -164,6 +179,9 @@ if __name__ == "__main__":
     instance.electricity_price.store_values({i: value for i, value in 
                                      enumerate([20*1e-3] * nr_time_steps)}) #2ct/kWh
     instance.maintenance_costs.store_values({None: 1.2*1e-3}) #1,2€/kWh
+   # instance.transfer_losses.store_values({(0,1): 0.95, (0,2): 0.9, (1,2): 0.92,
+   #                                       (1,0): 0.95, (2,1): 0.92, (2,0): 0.9,
+   #                                       (0,0): 0, (1,1): 0, (2,2): 0})
     solver = SolverFactory('gurobi')
     opt_results = solver.solve(instance, tee=True)
     print("Solver Termination: ", opt_results.solver.termination_condition)
@@ -228,18 +246,22 @@ if __name__ == "__main__":
         for data in variable_data:
             writer.writerow(data)
             
-
-#    sns.set_theme(palette='muted')
-
+    df_load = pd.read_csv(f_load)
+    df1['total_gen_A0'] = pd.DataFrame(df1['km_generation_power 0 0'] + df1['km_generation_power 0 1'] + df1['km_generation_power 0 2'] + df1['km_generation_power 0 3'])
+    df1['total_gen_A1'] = pd.DataFrame(df1['km_generation_power 1 0'] + df1['km_generation_power 1 1'] + df1['km_generation_power 1 2'] + df1['km_generation_power 1 3'])
+    df1['total_gen_A2'] = pd.DataFrame(df1['km_generation_power 2 0'] + df1['km_generation_power 2 1'] + df1['km_generation_power 2 2'] + df1['km_generation_power 2 3'])
+    load_A0 = pd.DataFrame(df_load.loc[df_load['utility']==0]['load'])
+    load_A1 = pd.DataFrame(df_load.loc[df_load['utility']==1]['load'])
+    load_A2 = pd.DataFrame(df_load.loc[df_load['utility']==2]['load'])
+    load_A2.set_index(df1.index, inplace=True)
+    load_A1.set_index(df1.index, inplace=True)
+    surplus_A0 = pd.DataFrame(df1['total_gen_A0'] - load_A0['load'])
+    surplus_A1 = pd.DataFrame(df1['total_gen_A1'] - load_A1['load'])
+    surplus_A2 = pd.DataFrame(df1['total_gen_A2'] - load_A2['load'])
     
-# ax.stackplot(timesteps, 
-#              PowerThermal.to_numpy(dtype = float).transpose(), wind, pv, 
-#              values['w_pump'].to_numpy(dtype = float).transpose(),
-#              values['w_turb'].to_numpy(dtype = float).transpose(),
-#              labels=['Kohle', 'GuD', 'Gasturbine','Wind', 'PV','Pump','Turbinieren'], 
-#              colors = ["grey", "blue", "red", "green", "yellow", "purple", "orange"])
-# ax.set_title('Bsp3: Fossile + erneuerbare Kraftwerke + Speicher')
-# ax.legend(loc='lower left')
-# ax.set_ylabel('Erzeugung [MW]')
-# ax.set_xlim(xmin=timesteps[0], xmax=timesteps[23])
-# fig.tight_layout()
+    surplus_A0.plot(title='A0')
+    surplus_A1.plot(title='A1')
+    surplus_A2.plot(title='A2')
+    
+    plt.show()
+        

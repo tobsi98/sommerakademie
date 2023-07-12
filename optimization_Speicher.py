@@ -9,8 +9,10 @@ from matplotlib import pyplot as plt
 
 
 
-def opt_dc(nr_time_steps, nr_cooling_machines=4, nr_fwp=2, nr_locations=3, nr_pipes=3, cop=4, LOAD_STEPS_PER_HOUR=4, SOC_start=0, eta_laden=0.95, eta_entladen=0.97, SOC_max=28660, SOC_ende=0):
+def opt_dc(nr_time_steps, nr_cooling_machines=4, nr_fwp=2, nr_locations=3, nr_pipes=3, cop=4, LOAD_STEPS_PER_HOUR=4, SOC_start=0, eta_laden=0.95, eta_entladen=0.97, SOC_max=28660, SOC_ende=0, p_laden=2866, p_entladen=6000):
+    
     model = en.AbstractModel()
+    #model.setParam('MIPGap', 0.05)
     # ############################## Sets #####################################
     model.T = en.Set(initialize=np.arange(nr_time_steps))
     model.KM = en.Set(initialize=np.arange(nr_cooling_machines))
@@ -159,6 +161,17 @@ def opt_dc(nr_time_steps, nr_cooling_machines=4, nr_fwp=2, nr_locations=3, nr_pi
             return model.speicher_entladen[0] <= SOC_start
     model.speicher_entladen_con = en.Constraint(model.T, rule=speicher_entladen_rule)
 
+    def speicher_max_rule(model, t):
+        return model.speicher_SOC[t] <= SOC_max
+    model.speicher_max_con = en.Constraint(model.T, rule=speicher_max_rule)
+    
+    def speicher_maxladen_rule(model, t):
+        return model.speicher_laden[t] <= p_laden
+    model.speicher_maxladen_con = en.Constraint(model.T, rule=speicher_maxladen_rule)
+    
+    def speicher_maxentladen_rule(model, t):
+        return model.speicher_entladen[t] <= p_entladen
+    model.speicher_maxentladen_con = en.Constraint(model.T, rule=speicher_maxentladen_rule)
 
   ##################### Zielfunktion #########################################
 
@@ -177,6 +190,7 @@ def opt_dc(nr_time_steps, nr_cooling_machines=4, nr_fwp=2, nr_locations=3, nr_pi
     # term_cond = results.solver.termination_condition == TerminationCondition.optimal
 
 if __name__ == "__main__":
+    
     cop = 4
     nr_cooling_machines = 4
     # load for one location
@@ -212,7 +226,7 @@ if __name__ == "__main__":
     nr_time_steps = 653
     
     #write inputs into params
-    instance = opt_dc(nr_time_steps, nr_locations=3, SOC_start=0, eta_laden=0.95, eta_entladen=0.97, SOC_max=28660, SOC_ende=0)
+    instance = opt_dc(nr_time_steps, nr_locations=3, SOC_start=0, eta_laden=0.95, eta_entladen=0.97, SOC_max=28660, SOC_ende=0, p_laden=2866, p_entladen=6000)
     instance.cooling_load.store_values(df['load'].to_dict())
     instance.water_flow.store_values(df['water_flow'].to_dict())
 
@@ -229,6 +243,8 @@ if __name__ == "__main__":
    #                                       (1,0): 0.95, (2,1): 0.92, (2,0): 0.9,
    #                                       (0,0): 0, (1,1): 0, (2,2): 0})
     solver = SolverFactory('gurobi')
+    solver.options['mipgap'] = 0.0025
+    
     opt_results = solver.solve(instance, tee=True)
     print("Solver Termination: ", opt_results.solver.termination_condition)
     print("Solver Status: ", opt_results.solver.status)

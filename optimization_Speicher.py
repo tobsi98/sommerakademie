@@ -74,7 +74,7 @@ def opt_dc(nr_time_steps, nr_cooling_machines=4, nr_fwp=2, nr_locations=3, nr_pi
     #model.cover_load = en.Constraint(model.T, rule=pipe_rule)
     # Location A0
     def cover_load0_rule(model, t):
-        return sum(model.km_generation_power[0,i,t] +0.95*model.km_generation_power[1,i,t] + 0.9*model.km_generation_power[2,i,t] for i in model.KM) >= model.cooling_load[0,t]+0.95*model.cooling_load[1,t]+0.90*model.cooling_load[2,t]+model.speicher_laden[t] - model.speicher_entladen[t]
+        return sum(model.km_generation_power[0,i,t] +0.95*model.km_generation_power[1,i,t] + 0.9*model.km_generation_power[2,i,t] for i in model.KM) == model.cooling_load[0,t]+0.95*model.cooling_load[1,t]+0.90*model.cooling_load[2,t]+model.speicher_laden[t] - model.speicher_entladen[t]
     model.cover_load0 = en.Constraint(model.T, rule=cover_load0_rule)
     # Location A1
     def cover_load1_rule(model, t):
@@ -156,9 +156,9 @@ def opt_dc(nr_time_steps, nr_cooling_machines=4, nr_fwp=2, nr_locations=3, nr_pi
     
     def speicher_entladen_rule(model, t):  
         if t!=0:
-            return model.speicher_entladen[t]*4 <= model.speicher_SOC[t-1]
+            return model.speicher_entladen[t] <= model.speicher_SOC[t-1]*4
         else:
-            return model.speicher_entladen[0] <= SOC_start
+            return model.speicher_entladen[0] <= SOC_start*4
     model.speicher_entladen_con = en.Constraint(model.T, rule=speicher_entladen_rule)
 
     def speicher_max_rule(model, t):
@@ -219,6 +219,23 @@ if __name__ == "__main__":
 
     
     df.plot(y=['load', 'water_flow'])
+    # fig, ax = plt.subplots()
+
+    # twin1 = ax.twinx()
+    # p1 = ax.plot(df.index[], df['load'], label='Last Standort A0',color="b")
+    # p2 = twin1.plot(df.index[], df_eprice['preis abs'], label='strompreis',color='orange')
+
+    # ax.set_xlabel("Zeitstempel in 1/4 h")
+    # ax.set_ylabel("Speicherstand in kWh")
+    # twin1.set_ylabel("Strompreis in €/kWh")
+    # ax.yaxis.label.set_color('b')
+    # twin1.yaxis.label.set_color('r')
+
+    # ax.set_xlim(0, 652)
+    # ax.set_ylim(0, 15000)
+    # twin1.set_ylim(-0.6, 0.5)
+
+    # plt.show()
     #df_loc1 = df[:653]
     #df_loc2 = df[653:1306]
     #df_loc3 = df[1306:1960]
@@ -243,7 +260,7 @@ if __name__ == "__main__":
    #                                       (1,0): 0.95, (2,1): 0.92, (2,0): 0.9,
    #                                       (0,0): 0, (1,1): 0, (2,2): 0})
     solver = SolverFactory('gurobi')
-    solver.options['mipgap'] = 0.002
+    solver.options['mipgap'] = 0.001
     
     opt_results = solver.solve(instance, tee=True)
     print("Solver Termination: ", opt_results.solver.termination_condition)
@@ -274,6 +291,7 @@ if __name__ == "__main__":
     
     df1 = df1.abs()
     fig, axes = plt.subplots()
+    
     df1.plot.area(y=['km_generation_power 0 0', 'km_generation_power 0 1',
                      'km_generation_power 0 2', 'km_generation_power 0 3'])
     plt.xlabel('15 Minuten Intervall über eine Woche')
@@ -284,7 +302,7 @@ if __name__ == "__main__":
     plt.show()
     
     df1.plot.area(y=['km_generation_power 1 0', 'km_generation_power 1 1',
-                     'km_generation_power 1 2', 'km_generation_power 1 3'])
+                     'km_generation_power 1 2', 'km_generation_power 1 3'], ylim=(0,4000))
     plt.xlabel('15 Minuten Intervall über eine Woche')
     plt.ylabel('Leistung KMs Standort 2 [kW]')
     df1.plot.area(y=['fwp_power 1 0'])
@@ -321,9 +339,27 @@ if __name__ == "__main__":
     surplus_A1 = pd.DataFrame(df1['total_gen_A1'] - load_A1['load'])
     surplus_A2 = pd.DataFrame(df1['total_gen_A2'] - load_A2['load'])
     
-    surplus_A0.plot(title='Standort A0', xlabel)
-    surplus_A1.plot(title='Standort A1')
-    surplus_A2.plot(title='Standort A2')
+    surplus_A0.plot(title='Überschuss Standort A0', ylabel='Überschuss in kWh', xlabel=' Zeitstempel in 1/4 h', legend=False, grid=True, xlim=(0,652))
+    surplus_A1.plot(title='Überschuss Standort A1', ylabel='Überschuss in kWh', xlabel=' Zeitstempel in 1/4 h', legend=False, grid=True, xlim=(0,652))
+    surplus_A2.plot(title='Überschuss Standort A2', ylabel='Überschuss in kWh', xlabel=' Zeitstempel in 1/4 h', legend=False, grid=True, xlim=(0,652))
     
+    plt.show()
+    
+    fig, ax = plt.subplots()
+
+    twin1 = ax.twinx()
+    p1 = ax.plot(df1.index, df1['speicher_SOC'], label='soc',color="b")
+    p2 = twin1.plot(df_eprice.index, df_eprice['preis abs'], label='strompreis',color='r')
+
+    ax.set_xlabel("Zeitstempel in 1/4 h")
+    ax.set_ylabel("Speicherstand in kWh")
+    twin1.set_ylabel("Strompreis in €/kWh")
+    ax.yaxis.label.set_color('b')
+    twin1.yaxis.label.set_color('r')
+
+    ax.set_xlim(0, 652)
+    ax.set_ylim(0, 15000)
+    twin1.set_ylim(-0.6, 0.5)
+
     plt.show()
         

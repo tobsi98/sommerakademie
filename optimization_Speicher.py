@@ -139,11 +139,11 @@ def opt_dc(nr_time_steps, nr_cooling_machines=4, nr_fwp=2, nr_locations=3, nr_pi
     def speicher_soc_rule(model, t): #Speicherladezustand
         if t!=0:
             return (model.speicher_SOC[t-1]*0.9975 
-           + model.speicher_laden[t]*eta_laden 
-           - model.speicher_entladen[t]/eta_entladen 
+           + (model.speicher_laden[t]*eta_laden 
+           - model.speicher_entladen[t]/eta_entladen)/4
            - model.speicher_SOC[t] == 0)
         else:
-            return SOC_start + model.speicher_laden[0] * eta_laden - model.speicher_entladen[0]/eta_entladen - model.speicher_SOC[0] == 0
+            return SOC_start + (model.speicher_laden[0] * eta_laden - model.speicher_entladen[0]/eta_entladen)/4 - model.speicher_SOC[0] == 0
     model.speicher_soc = en.Constraint(model.T, rule=speicher_soc_rule)
     
     def speicher_soc_end_rule(model): #Endzustand
@@ -156,7 +156,7 @@ def opt_dc(nr_time_steps, nr_cooling_machines=4, nr_fwp=2, nr_locations=3, nr_pi
     
     def speicher_entladen_rule(model, t):  
         if t!=0:
-            return model.speicher_entladen[t] <= model.speicher_SOC[t-1]
+            return model.speicher_entladen[t]*4 <= model.speicher_SOC[t-1]
         else:
             return model.speicher_entladen[0] <= SOC_start
     model.speicher_entladen_con = en.Constraint(model.T, rule=speicher_entladen_rule)
@@ -243,7 +243,7 @@ if __name__ == "__main__":
    #                                       (1,0): 0.95, (2,1): 0.92, (2,0): 0.9,
    #                                       (0,0): 0, (1,1): 0, (2,2): 0})
     solver = SolverFactory('gurobi')
-    solver.options['mipgap'] = 0.0025
+    solver.options['mipgap'] = 0.002
     
     opt_results = solver.solve(instance, tee=True)
     print("Solver Termination: ", opt_results.solver.termination_condition)
@@ -321,9 +321,9 @@ if __name__ == "__main__":
     surplus_A1 = pd.DataFrame(df1['total_gen_A1'] - load_A1['load'])
     surplus_A2 = pd.DataFrame(df1['total_gen_A2'] - load_A2['load'])
     
-    surplus_A0.plot(title='A0')
-    surplus_A1.plot(title='A1')
-    surplus_A2.plot(title='A2')
+    surplus_A0.plot(title='Standort A0', xlabel)
+    surplus_A1.plot(title='Standort A1')
+    surplus_A2.plot(title='Standort A2')
     
     plt.show()
         
